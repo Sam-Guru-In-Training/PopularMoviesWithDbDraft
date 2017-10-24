@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Popular Movies</string>
+    <string name="error_message">An error has occurred, click options to try again</string>
+    <string name="movie_poster">movie poster</string>
+    <string name="sort_by_popular">sort by most popular</string>
+    <string name="sort_by_top_rated">sort by top rated</string>
+
+    <string name="title_activity_detail">Details</string>
+    <string name="content_authority">uk.co.pottertour.popularmovieswithdb</string>
+    <string name="action_share">Share</string>
+    <string name="reviewsTag">reviews</string>
+    <string name="trailersTag">trailers</string>
+    <string name="show_favourites">show only favourites</string>
+</resources>
