@@ -16,8 +16,10 @@
 package uk.co.pottertour.popularmovieswithdb.sync;
 
 import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
+import android.net.Uri;
 import android.util.Log;
 
 import java.net.URL;
@@ -140,13 +142,16 @@ public class MoviesSyncTask {
                 // TODO swap this for the row id?
                 String[] selectionArgs = { "" + movieId};
                 /* update our contentProvider with trailers for the appropriate row */
-                int rowUpdated = moviesContentResolver.update(
-                        MoviesContract.MoviesEntry.INSERT_DETAILS_URI, //CONTENT_URI,
+                Uri detailsQueryUri = ContentUris.withAppendedId(
+                        MoviesContract.MoviesEntry.INSERT_DETAILS_URI, movieId);
+
+                int rowsUpdated = moviesContentResolver.update(
+                        detailsQueryUri, //CONTENT_URI,
                         trailersContentValues,
                         selection,
                         selectionArgs);
 
-                if (rowUpdated == 0) {
+                if (rowsUpdated == 0) {
                     throw new Exception("No trailers added to db, weird?");
                 }
 
