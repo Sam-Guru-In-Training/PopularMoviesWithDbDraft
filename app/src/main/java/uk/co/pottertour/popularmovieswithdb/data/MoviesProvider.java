@@ -106,7 +106,7 @@ public class MoviesProvider extends ContentProvider {
         //matcher.addURI(authority, MoviesContract.PATH_MOVIES + "/#", CODE_WEATHER_WITH_DATE);
         //matcher.addURI(authority, MoviesContract.PATH_MOVIES + "/" + MoviesContract.PATH_DETAILS, CODE_TRAILERS);
 
-        matcher.addURI(authority, MoviesContract.PATH_FAVOURITES_ONLY, CODE_FAVOURITE_ONLY);
+        matcher.addURI(authority, MoviesContract.PATH_FAVOURITES_ONLY + "/#", CODE_FAVOURITE_ONLY);
 
         matcher.addURI(authority, MoviesContract.PATH_MOVIES + "/" + MoviesContract.PATH_DETAILS + "/#", CODE_TRAILERS);
 
@@ -273,10 +273,10 @@ public class MoviesProvider extends ContentProvider {
                 Log.wtf(TAG, "trailers code, selection_col: " + selection);
                 Log.wtf(TAG, "trailers code, selection_vals: " + selectionArgs);
 
-                String rowId = String.valueOf(ContentUris.parseId(uri));
+                String movieId = String.valueOf(ContentUris.parseId(uri));
                 //selection = MoviesContract.MoviesEntry._ID + " = ?";
                 selection = MoviesContract.MoviesEntry.COLUMN_MOVIE_ID + " = ?";
-                selectionArgs = new String[]{rowId};
+                selectionArgs = new String[]{movieId};
                 cursor = mOpenHelper.getReadableDatabase().query(
                         MoviesContract.MoviesEntry.TABLE_NAME,
                         projection,
@@ -290,8 +290,10 @@ public class MoviesProvider extends ContentProvider {
             }
 
             case CODE_FAVOURITE_ONLY: {
+                String movieId = String.valueOf(ContentUris.parseId(uri));
+                selectionArgs = new String[]{movieId};
 
-                Log.wtf(TAG, "making a query for favourties");
+                Log.wtf(TAG, "making a query for favourties using movieId: " + movieId);
                 cursor = mOpenHelper.getReadableDatabase().query(
                         MoviesContract.MoviesEntry.TABLE_NAME,
                         projection,
@@ -303,7 +305,7 @@ public class MoviesProvider extends ContentProvider {
             }
 
             default:
-                throw new UnsupportedOperationException("Unknown uri: " + uri);
+                throw new UnsupportedOperationException("Unknown uri in MoviesProvider: " + uri);
         }
 
         cursor.setNotificationUri(getContext().getContentResolver(), uri);
@@ -393,7 +395,8 @@ public class MoviesProvider extends ContentProvider {
         // TODO need this working for trailers and reviews addition and favouriting
         // TODO make sure sending through right selection arguments
         final SQLiteDatabase db = mOpenHelper.getWritableDatabase();
-        Log.v(TAG, "arrived in db update");
+        String UPDATE = " update";
+        Log.v(TAG + UPDATE, "arrived in db update");
 
         long _id;
         int rowsUpdated = 0;
@@ -402,12 +405,15 @@ public class MoviesProvider extends ContentProvider {
 
             // TODO ONLY NEED ONE CODE FOR REVIEWS AND TRAILERS?
             case CODE_FAVOURITE_ONLY:
-                Log.v(TAG, "updating favourite status :)");
+
+                String movieId = String.valueOf(ContentUris.parseId(uri));
+                selectionArgs = new String[]{movieId};
+                Log.v(TAG, "updating favourite bool for movieId: " + movieId);
                 db.beginTransaction();
                 try {
                     _id = db.update(MoviesContract.MoviesEntry.TABLE_NAME,
                             newValues, selection, selectionArgs);
-                    Log.v(TAG, "updating favourite status, _id = " + _id);
+                    Log.v(TAG + UPDATE, "saving favourite status, _id = " + _id);
                     // TODO this is returning a favourite uri, will it update the table seen by other uris?
                     if (_id > -1) getContext().getContentResolver().notifyChange(uri, null);
                     db.setTransactionSuccessful();

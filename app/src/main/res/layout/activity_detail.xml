@@ -25,7 +25,7 @@ WAS FrameLayout
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-    <ScrollView
+    <android.support.v4.widget.NestedScrollView
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:fillViewport="true">
@@ -64,14 +64,14 @@ WAS FrameLayout
                 android:clipToPadding="false"
                 android:paddingBottom="0dp"
                 />
-
             <android.support.v7.widget.RecyclerView
                 android:id="@+id/recyclerview_movie_reviews"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:clipToPadding="false"
                 android:paddingBottom="8dp"
+
                 />
         </LinearLayout>
-    </ScrollView>
+    </android.support.v4.widget.NestedScrollView>
 </FrameLayout>

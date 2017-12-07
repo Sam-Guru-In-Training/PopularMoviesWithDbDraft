@@ -123,6 +123,7 @@ public class JsonReviewsAdapter extends RecyclerView.Adapter<JsonReviewsAdapter.
             // Set the current position to "expanded"
             expandedPosition = adapterPosition;
             notifyItemChanged(expandedPosition);
+            notifyDataSetChanged();
 
             //TODO load expanded view
             //mCursor.moveToPosition(adapterPosition);

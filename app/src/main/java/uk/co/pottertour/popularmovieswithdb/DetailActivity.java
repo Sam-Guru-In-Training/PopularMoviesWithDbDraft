@@ -6,6 +6,7 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.app.ShareCompat;
@@ -71,8 +72,10 @@ public class DetailActivity extends AppCompatActivity implements
     private static final int INDEX_MOVIE_REVIEWS = 9;
 
     private static final int ID_DETAIL_LOADER = 666;
+    private static final int ID_FAVOURITE_LOADER = 667;
+    private static final String FAVOURITE_KEY = "favourite_key";
 
-    private Boolean mFavouriteStatus = false;
+    private Boolean mFavouriteStatus;
 
     private TrailersAdapter trailersAdapter;
     //private ReviewsAdapter reviewsAdapter;
@@ -132,7 +135,7 @@ public class DetailActivity extends AppCompatActivity implements
 
         if (mIntent != null) {
             mMovieId = getIntent().getIntExtra("MovieId", 550);
-            Bundle rowSelection = new Bundle();
+            final Bundle rowSelection = new Bundle();
             rowSelection.putInt("MovieId", mMovieId);
 
             Log.e(TAG, "inside, movieID api movieId? "  + mMovieId);
@@ -243,6 +246,23 @@ public class DetailActivity extends AppCompatActivity implements
             //getSupportLoaderManager().initLoader(MainActivity.ID_POPULAR_MOVIES_LOADER, null, this);
             //getSupportLoaderManager().restartLoader(ID_DETAIL_LOADER, rowSelection, this);
 
+
+            // setup a listener to reload the favourite button each time it's hit.
+            // TODO is this right?
+//            ToggleButton faveButton = (ToggleButton) findViewById(R.id.button_favourite);
+//            faveButton.setOnClickListener(new View.OnClickListener() {
+//                public void onClick(View v) {
+//                    Log.v(TAG + " faveBtn ClickListener", "button clicked restarting FAVOURITE_LOADER");
+//                    mFavouriteStatus = !mFavouriteStatus;
+//                    Log.v(TAG, "!!!!!!!!!!!!!!!!!!!! changed status of fave btn: " + mFavouriteStatus);
+//                    // as well as movieId, add the Favourite button status,
+//                    // TODO, favourite button is now being updated before it's intialised, HELP!
+//                    rowSelection.putBoolean(FAVOURITE_KEY, mFavouriteStatus);
+//                    getSupportLoaderManager().initLoader(ID_FAVOURITE_LOADER, rowSelection, DetailActivity.this);
+//                    getSupportLoaderManager().restartLoader(ID_FAVOURITE_LOADER, rowSelection, DetailActivity.this);
+//                }
+//            });
+
             // this begins an immediate Network request pulling JSON from the server
             DetailsSyncUtils.initialize(this, mMovieId);
         }
@@ -251,26 +271,50 @@ public class DetailActivity extends AppCompatActivity implements
     @Override
     public Loader<Cursor> onCreateLoader(int loaderId, Bundle args) {
         // get the DB row_ID we're interested in
-        int movieId = args.getInt("MovieId");
+        Log.i(TAG + " onCreateLoader", "attempting to boot loader");
         switch (loaderId) {
 
             case ID_DETAIL_LOADER:
-                Log.v(TAG, "attempting to read db with a new CursorLoader using movie: " + movieId);
+                int movieId = args.getInt("MovieId");
+                Uri detailsQueryUri = ContentUris.withAppendedId(MoviesContract.MoviesEntry.INSERT_DETAILS_URI, movieId);
                 String selection = MoviesContract.MoviesEntry._ID + " = ?"; //COLUMN_MOVIE
-                String[] selectionArgs = {String.valueOf(movieId)}; // HOPEFULLY this selects just 1 row
-                //Uri detailsQueryUri = MoviesContract.MoviesEntry.INSERT_DETAILS_URI;//CONTENT_URI;
+                String[] selectionArgs = {String.valueOf(movieId)};
                 String sortOrder = null;
 
-                Uri detailsQueryUri = ContentUris.withAppendedId(MoviesContract.MoviesEntry.INSERT_DETAILS_URI, movieId);
-                Log.v(TAG, "detailQueryUri = " + detailsQueryUri);
-
-                // TODO this is not returning anything, it's faulty
                 return new CursorLoader(this,
                         detailsQueryUri,
                         DETAILS_PROJECTION, // all columns
                         selection, // where Movie_ID column =
                         selectionArgs, // movieId
                         sortOrder);
+
+            case ID_FAVOURITE_LOADER:
+                Log.v(TAG + " FAVOURITE_LOADER", "Attempting to update favourite field in db");
+                ContentResolver moviesContentResolver = this.getContentResolver();
+                ContentValues favouriteContentValue = new ContentValues();
+                favouriteContentValue.put(MoviesContract.MoviesEntry.COLUMN_FAVOURITE, mFavouriteStatus.toString());
+
+                String selectionFave = MoviesContract.MoviesEntry.COLUMN_MOVIE_ID + " = ?";
+                // selectionArgs
+                //String movieIdStr = mCursor.getString(DetailActivity.INDEX_MOVIE_ID);
+                String movieIdStr = String.valueOf(DetailActivity.INDEX_MOVIE_ID);
+                String[] selectionArgsFave = { "" + movieIdStr};
+                //* update our contentProvider with trailers for the appropriate row *//*
+                int rowUpdated = moviesContentResolver.update(
+                        MoviesContract.MoviesEntry.UPDATE_FAVOURITE_URI, //CONTENT_URI,
+                        favouriteContentValue,
+                        selectionFave,
+                        selectionArgsFave);
+                if (rowUpdated == -1) {
+                    Log.wtf(TAG, "toggled favourite but db hasn't been updated WTH?!");
+                    // TODO work out how to make method throw an exception without try catch
+                    //throw new Exception("Favourite toggled but db not updated, weird?");
+                }
+                else {
+                    Log.wtf(TAG, "updated db with new favourite value: " + rowUpdated);
+                    // ToggleButton state again
+                }
+                return null;
 
             default:
                 throw new RuntimeException("Loader Not Implemented!!!!: " + loaderId);
@@ -318,9 +362,12 @@ public class DetailActivity extends AppCompatActivity implements
         if (data == null) Log.v(TAG, "cursor is null :(");
         if (!cursorHasValidData) {
             /* No data to display, simply return and do nothing */
-            Log.wtf(TAG, "cursor doesn\'t have valid data");
+            Log.wtf(TAG, "cursor doesn\'t have valid data or favourite button pressed");
             return;
         }
+
+        // get the saved Favourite status
+        mFavouriteStatus = Boolean.valueOf(data.getString(DetailActivity.INDEX_MOVIE_FAVOURITE));
 
         /* Swap out the data on the adapter*/
         //trailersAdapter.swapCursor(data);
@@ -346,7 +393,8 @@ public class DetailActivity extends AppCompatActivity implements
         trailersAdapter.setMoviesData(trailersList);
         // TODO TESTING THIS STUFF
 //        data.close();
-//        trailersAdapter.notifyDataSetChanged();
+         trailersAdapter.notifyDataSetChanged();
+         reviewsAdapter.notifyDataSetChanged();
 
         Log.v(TAG, "olf: adapters set, scrolling");
         //TextView mTitleTop = (TextView) findViewById(R.id.tv_title);
@@ -439,6 +487,7 @@ public class DetailActivity extends AppCompatActivity implements
      */
     @Override
     public void onLoaderReset(Loader<Cursor> loader) {
+        Log.i(TAG + " onLoaderReset", "attempting to reset loader");
         trailersAdapter = null;
         reviewsAdapter = null;
         //trailersAdapter.swapCursor(null);
@@ -523,34 +572,56 @@ public class DetailActivity extends AppCompatActivity implements
     }
     /* toggles favourite state */
     public void onclick_favourite_button(View view) {
-
+        String ONCLICK = " onClick_fave";
         mFavouriteStatus = !mFavouriteStatus;
-        Log.v(TAG, "!!!!!!!!!!!!!!!!!!!! changed status of fave btn: " + mFavouriteStatus);
-        //TODO saving to db, is this best practice, should I use a loader instead?
-        ContentResolver moviesContentResolver = this.getContentResolver();
-        ContentValues favouriteContentValue = new ContentValues();
-        favouriteContentValue.put(MoviesContract.MoviesEntry.COLUMN_FAVOURITE, mFavouriteStatus.toString());
+        Log.v(TAG + ONCLICK, "!!!!!!!!!!!!!!!!!!!! changed status of fave btn: " + mFavouriteStatus);
 
-        String selection = MoviesContract.MoviesEntry.COLUMN_MOVIE_ID + " = ?";
-        // selectionArgs
-        //String movieIdStr = mCursor.getString(DetailActivity.INDEX_MOVIE_ID);
-        String movieIdStr = String.valueOf(DetailActivity.INDEX_MOVIE_ID);
-        String[] selectionArgs = { "" + movieIdStr};
-                //* update our contentProvider with trailers for the appropriate row *//*
-        int rowUpdated = moviesContentResolver.update(
-                MoviesContract.MoviesEntry.UPDATE_FAVOURITE_URI, //CONTENT_URI,
-                favouriteContentValue,
-                selection,
-                selectionArgs);
+        Bundle args = new Bundle();
+        args.putBoolean(FAVOURITE_KEY, mFavouriteStatus);
 
-        if (rowUpdated == -1) {
-            Log.wtf(TAG, "toggled favourite but db hasn't been updated WTH?!");
-            // TODO work out how to make method throw an exception without try catch
-            //throw new Exception("Favourite toggled but db not updated, weird?");
-        }
-        else {
-            Log.wtf(TAG, "updated db with new favourite value: " + rowUpdated);
-            // ToggleButton state again
+        // simple update, quick operation so just AsyncTask it
+        new ChangeFavouriteStatusInDb().execute(mMovieId);
+        // TODO could arrange for update to kick off on rotation, but so quick...
+        Log.v(TAG + ONCLICK, "successfully updated fave db field");
+
+        //getSupportLoaderManager().initLoader(ID_FAVOURITE_LOADER, args, this);
+    }
+
+    private class ChangeFavouriteStatusInDb extends AsyncTask<Integer, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Integer... integers) {
+            int movieId = integers[0];
+            String ASYNCTASK = " AsyncTask";
+            ContentResolver moviesContentResolver = DetailActivity.this.getContentResolver();
+            ContentValues favouriteContentValue = new ContentValues();
+            favouriteContentValue.put(MoviesContract.MoviesEntry.COLUMN_FAVOURITE, mFavouriteStatus.toString());
+
+            String selection = MoviesContract.MoviesEntry.COLUMN_MOVIE_ID + " = ?";
+            // selectionArgs
+            //String movieIdStr = mCursor.getString(DetailActivity.INDEX_MOVIE_ID);
+            String movieIdStr = String.valueOf(mMovieId);//DetailActivity.INDEX_MOVIE_ID);
+            String[] selectionArgs = { "" + movieIdStr};
+
+            Uri favouriteUpdateUri = ContentUris.withAppendedId(MoviesContract.MoviesEntry.UPDATE_FAVOURITE_URI,
+                    mMovieId);
+            //* update our contentProvider with trailers for the appropriate row *//*
+            int rowUpdated = moviesContentResolver.update(
+                    favouriteUpdateUri, //CONTENT_URI,
+                    favouriteContentValue,
+                    selection,
+                    selectionArgs);
+            if (rowUpdated == -1) {
+                Log.wtf(TAG + ASYNCTASK, "toggled favourite but db hasn't been updated WTH?!");
+                // TODO work out how to make method throw an exception without try catch
+                //throw new Exception("Favourite toggled but db not updated, weird?");
+            }
+            else {
+                Log.wtf(TAG + ASYNCTASK, "updated db with new favourite value");
+                // ToggleButton state again
+            }
+
+            return null;
         }
     }
 
