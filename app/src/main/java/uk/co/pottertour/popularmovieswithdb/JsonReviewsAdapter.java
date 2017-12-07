@@ -1,7 +1,5 @@
 package uk.co.pottertour.popularmovieswithdb;
 
-import android.content.ContentResolver;
-import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.support.annotation.NonNull;
@@ -10,15 +8,18 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.ToggleButton;
 
-import com.squareup.picasso.Picasso;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-import java.util.List;
+import java.util.ArrayList;
 
-import uk.co.pottertour.popularmovieswithdb.data.MoviesContract;
+import static uk.co.pottertour.popularmovieswithdb.utilities.MoviesDBJsonUtils.MDB_REVIEW_AUTHOR_KEY;
+import static uk.co.pottertour.popularmovieswithdb.utilities.MoviesDBJsonUtils.MDB_REVIEW_TEXT_KEY;
 
 /**
  * Created by Sam on 13/08/2017.
@@ -27,15 +28,17 @@ import uk.co.pottertour.popularmovieswithdb.data.MoviesContract;
 // TODO 1 save everything to a DB
 // include columns for reviews object and trailer Uris
 
-public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsAdapterViewHolder> {
+public class JsonReviewsAdapter extends RecyclerView.Adapter<JsonReviewsAdapter.DetailsAdapterViewHolder> {
 
-    private final String TAG = DetailsAdapter.class.getSimpleName();
+    private final String TAG = JsonReviewsAdapter.class.getSimpleName();
 
     private static final int VIEW_TYPE_TOP = 0;
-    private static final int VIEW_TYPE_LIST_ITEM = 1; // TODO is this right???!
+    private static final int VIEW_TYPE_LIST_ITEM = 1;
+    private int expandedPosition = -1; // holds the position of the present expanded list item
 
     private Cursor mCursor;
-    private List<String> mTrailersList;
+    //private List<String> mReviewsList;
+    private JSONArray mReviewJsonArray;
     /* The context we use to utility methods, app resources and layout inflaters */
     private Context mContext; // final
     /*
@@ -61,7 +64,7 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
      * @param clickHandler The on-click handler for this adapter. This single handler is called
      *                     when an item is clicked.
      */
-    public DetailsAdapter(@NonNull Context context, DetailsAdapterOnClickHandler clickHandler) {
+    public JsonReviewsAdapter(@NonNull Context context, DetailsAdapterOnClickHandler clickHandler) {
         mContext = context;
         mClickHandler = clickHandler;
 
@@ -72,31 +75,22 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
      */
     public class DetailsAdapterViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
 
-        final ImageView mPosterImageView;
-        final TextView mTitle;
-        final TextView mReleaseDate;
-        final TextView mVoteAvg;
-        final ToggleButton mFavourite;
-        final TextView mSynopsis;
-
-        /* views for trailers / reviews */
-        final TextView mTrailerLink;
-        final TextView mReviewLink;
+        TextView mAuthorTV;
+        TextView mReviewTV;
+        ImageView mExpandBtnIV;
+        ImageView mMinimiseBtnIV;
 
         public DetailsAdapterViewHolder(View view) {
             super(view);
-            mPosterImageView = (ImageView) view.findViewById(R.id.iv_detail_poster_thumbnail);
-            mTitle = (TextView) view.findViewById(R.id.tv_title);
-            mReleaseDate = (TextView) view.findViewById(R.id.tv_release_date);
-            mVoteAvg = (TextView) view.findViewById(R.id.tv_vote_average);
-            mFavourite = (ToggleButton) view.findViewById(R.id.button_favourite);
-            mSynopsis = (TextView) view.findViewById(R.id.tv_overview);
 
-            mTrailerLink = (TextView) view.findViewById(R.id.tv_trailers_label);
-            mReviewLink = (TextView) view.findViewById(R.id.tv_reviews_label);
+            mAuthorTV = (TextView) view.findViewById(R.id.tv_reviewer_name);
+            mReviewTV = (TextView) view.findViewById(R.id.tv_review_text);
+            mExpandBtnIV = (ImageView) view.findViewById(R.id.expand_button);
+            mMinimiseBtnIV = (ImageView) view.findViewById(R.id.minimise_button);
 
-            mFavourite.setOnClickListener(this);
-            // ClickListener for trailer/review rows
+//            mFavourite = (ToggleButton) view.findViewById(R.id.button_favourite);
+            //mFavourite.setOnClickListener(this);
+            // ClickListener for entire list item
             view.setOnClickListener(this);
         }
 
@@ -107,17 +101,52 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
          */
         @Override
         public void onClick(View view) {
+            Log.i(TAG + " onClick", "button clicked");
 
             int adapterPosition = getAdapterPosition();
+
+            RecyclerView.ViewHolder holder = (RecyclerView.ViewHolder) view.getTag();
+
+            // TODO check if view is already expanded if so minimise IS THIS WORKING?
+            if (adapterPosition == expandedPosition) {
+                Log.i(TAG + " onClick", "trying to minimise the box");
+                expandedPosition = -10;
+                notifyItemChanged(adapterPosition);
+                return;
+            }
+
+            // Check for an expanded item view elsewhere, collapse if you find one
+            if (expandedPosition >= 0) {
+                int previousExpandedReview = expandedPosition;
+                notifyItemChanged(previousExpandedReview);
+            }
+            // Set the current position to "expanded"
+            expandedPosition = adapterPosition;
+            notifyItemChanged(expandedPosition);
+
+            //TODO load expanded view
+            //mCursor.moveToPosition(adapterPosition);
+
+            //long dateInMillis = mCursor.getLong(MainActivity.INDEX_WEATHER_DATE);
+
+
+            //Log.v(TAG, "sending URL str to DetailActivity: " + reviewUrlStr);
+            //mClickHandler.onClick(reviewUrlStr);
+
+/*
+            Log.v(TAG, "adapter pos = " + adapterPosition);
+            //TODO get the trailers array, index to the write one, launch an internet inte
+
+
             //https://stackoverflow.com/questions/36759744/onclicklistener-on-the-specific-item-of-the-recyclerview-in-android
             if (view.getId() == mFavourite.getId()) {
-                Log.wtf(TAG, "just clicked FAVOURITE!!!!!!!!!!");
+                Log.v(TAG, "just clicked FAVOURITE!!!!!!!!!!");
                 Boolean faveBool = !(MainActivity.mFave); //mCursor.getString(DetailActivity.INDEX_MOVIE_FAVOURITE);
                 MainActivity.mFave = faveBool;
                 // now set the button state to Stick to pressed or depressed
                 ((ToggleButton) view).setChecked(faveBool);
-                Log.wtf(TAG, "Button value = " + faveBool);
-                Log.wtf(TAG, "Reversed Button value = " + faveBool);
+                Log.v(TAG, "Button value = " + faveBool);
+                Log.v(TAG, "Reversed Button value = " + faveBool);
 
                 //TODO saving to db, is this best practice, should I use a loader instead?
                 ContentResolver moviesContentResolver = mContext.getContentResolver();
@@ -129,7 +158,7 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
                 //String movieIdStr = mCursor.getString(DetailActivity.INDEX_MOVIE_ID);
                 String movieIdStr = String.valueOf(DetailActivity.INDEX_MOVIE_ID);
                 String[] selectionArgs = { "" + movieIdStr};
-                /* update our contentProvider with trailers for the appropriate row */
+                *//* update our contentProvider with trailers for the appropriate row *//*
                 int rowUpdated = moviesContentResolver.update(
                         MoviesContract.MoviesEntry.INSERT_DETAILS_URI, //CONTENT_URI,
                         favouriteContentValue,
@@ -153,7 +182,7 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
                 return;
             }
             // TODO else we have a list item, and need to launch the url
-            String trailerUrlStr = mTrailersList.get(adapterPosition - 1); // subtract one to account for header
+            String trailerUrlStr = mReviewJsonArray.get(adapterPosition - 1); // subtract one to account for header
 
             //String trailersStr = mCursor.getString(DetailActivity.INDEX_MOVIE_TRAILERS);
             //String reviewsStr = mCursor.getString(DetailActivity.INDEX_MOVIE_REVIEWS);
@@ -184,7 +213,7 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
             //Log.v("MoviesAdapter", "Do we have Trailers/reviews?: " + reviewsStr);
             //Log.v("MoviesAdapter", "Trailer ID: " + R.id.tv_reviews_label);
             //mClickHandler.onClick(movieData);
-            mClickHandler.onClick(trailerUrlStr);
+            mClickHandler.onClick(trailerUrlStr);*/
         }
     }
 
@@ -204,18 +233,18 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
         int layoutId;
         String layoutTag;
 
-        switch (viewType) {
-            case VIEW_TYPE_TOP:
-                layoutId = R.layout.primary_detail_info;
-                break;
-            case VIEW_TYPE_LIST_ITEM:
-                Log.wtf(TAG, "Creating layout for a trailer");
+//        switch (viewType) {
+//            case VIEW_TYPE_TOP:
+//                layoutId = R.layout.primary_detail_info;
+//                break;
+//            case VIEW_TYPE_LIST_ITEM:
+                //Log.wtf(TAG, "Setting Layout for a review");
                 // USED for trailer and review rows
-                layoutId = R.layout.trailer_list_item;
-                break;
-            default:
-                throw new IllegalArgumentException("" + viewType);
-        }
+                layoutId = R.layout.review_list_item;
+//                break;
+//            default:
+//                throw new IllegalArgumentException("" + viewType);
+//        }
 
         View view = LayoutInflater.from(mContext).inflate(layoutId, viewGroup, false);
 
@@ -250,12 +279,17 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
     @Override
     public void onBindViewHolder(DetailsAdapterViewHolder detailsAdapterViewHolder, int position) {
 
+        /* https://stackoverflow.com/questions/27203817/recyclerview-expand-collapse-items */
+        // check for an expanded view, collapse if you find one, SO COLLAPSES ON SCROLL?
+
+
+
         //mCursor.moveToPosition(position);
         //MovieObject movieDetails = mMoviesData[position];
         int viewType = getItemViewType(position);
 
-        switch (viewType) {
-            case VIEW_TYPE_TOP:
+        /*switch (viewType) {
+              case VIEW_TYPE_TOP:
                 // attach the movie details such as title etc.
                 String title = MainActivity.mTitle;//mCursor.getString(DetailActivity.INDEX_MOVIE_TITLE);
                 detailsAdapterViewHolder.mTitle.setText(title);
@@ -279,19 +313,44 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
                         .load(posterUrlString).fit()
                         .into(detailsAdapterViewHolder.mPosterImageView);
 
-        /* Store a summary for sharing with friends */
+        *//* Store a summary for sharing with friends *//*
                 //mMovieSummary = String.format("%s - %s", title, voteAverage);
 
                 break;
-            case VIEW_TYPE_LIST_ITEM:
-                Log.wtf(TAG, "laying out trailer " + position);
-                detailsAdapterViewHolder.mTrailerLink.setText("Trailer " + position);
+            case VIEW_TYPE_LIST_ITEM:*/
+                Log.i(TAG + "onBindViewHolder", "laying out review " + position);
+                //detailsAdapterViewHolder.mLinkTV.setText("Review " + (position + 1));
+
+        String authorName = "Review by ";
+        String reviewText = "Error loading review";
+        try {
+            JSONObject newJsonObject = mReviewJsonArray.getJSONObject(position);
+            authorName = authorName + newJsonObject.getString(MDB_REVIEW_AUTHOR_KEY);
+            reviewText = newJsonObject.getString(MDB_REVIEW_TEXT_KEY);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        detailsAdapterViewHolder.mAuthorTV.setText(authorName);
+        detailsAdapterViewHolder.mReviewTV.setText(reviewText);
+
+        if (position == expandedPosition) {
+            Log.e(TAG + " onBindViewHolder", "expanded position show review");
+            detailsAdapterViewHolder.mReviewTV.setVisibility(View.VISIBLE);
+            detailsAdapterViewHolder.mMinimiseBtnIV.setVisibility(View.VISIBLE);
+            detailsAdapterViewHolder.mExpandBtnIV.setVisibility(View.GONE);
+        } else {
+            Log.i(TAG + " onBindViewHolder", "hiding review text");
+            detailsAdapterViewHolder.mReviewTV.setVisibility(View.GONE);
+            detailsAdapterViewHolder.mMinimiseBtnIV.setVisibility(View.GONE);
+            detailsAdapterViewHolder.mExpandBtnIV.setVisibility(View.VISIBLE);
+        }
+
                 //detailsAdapterViewHolder.mReviewLink.setText("Review " + position);
 
-                break;
+          /*      break;
             default:
                 throw new IllegalArgumentException("" + viewType);
-        }
+        }*/
 
 //        String moviePoster = mCursor.getString(MainActivity.INDEX_POSTER_PATH);
 //
@@ -330,9 +389,9 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
      */
     @Override
     public int getItemCount() {
-        if (mTrailersList == null) return 0;
-        Log.wtf(TAG, "we have " + (mTrailersList.size() + 1) + " trailers " + mTrailersList.get(0));
-        return mTrailersList.size();
+        if (mReviewJsonArray == null) return 0;
+        //Log.i(TAG, "getItemCount: we have " + (mReviewJsonArray.length()) + " reviews\n" + mReviewJsonArray);
+        return mReviewJsonArray.length(); //size();
         //if (mCursor == null) return 0;
         //return mCursor.getCount();
     }
@@ -355,10 +414,11 @@ public class DetailsAdapter extends RecyclerView.Adapter<DetailsAdapter.DetailsA
      * created one. This is handy when we get new data from the web but don't want to create a
      * new MovieAdapter to display it.
      *
-     * @param trailersList The new trailers and reviews to be displayed.
+     * @param newReviewsArray The new authors & reviews to be displayed.
      */
-    public void setMoviesData(List<String> trailersList) {
-        mTrailersList = trailersList;
+    public void setMoviesData(JSONArray newReviewsArray) {//List<String> trailersList) {
+        //Log.v(TAG, "setMoviesData, db list = " + newReviewsArray);
+        mReviewJsonArray = newReviewsArray;
         notifyDataSetChanged();
     }
 

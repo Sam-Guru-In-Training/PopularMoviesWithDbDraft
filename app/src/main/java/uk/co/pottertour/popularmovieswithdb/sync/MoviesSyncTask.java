@@ -111,60 +111,84 @@ public class MoviesSyncTask {
 
             // TODO https://api.themoviedb.org/3/movie/550/videos?api_key=bf8804126f6854cbd4d8c4d1ea8a4f31
             // TODO https://api.themoviedb.org/3/movie/550/reviews?api_key=bf8804126f6854cbd4d8c4d1ea8a4f31
+            Log.v(TAG, "getting trailers JSON");
             String trailersJsonResponse = NetworkUtils.getResponseFromHttpUrl(trailersRequestUrl);
+            Log.v(TAG, "getting reviews JSON");
             String reviewsJsonResponse = NetworkUtils.getResponseFromHttpUrl(reviewsRequestUrl);
 
             /* Parse the JSON into a list of weather values */
             // TODO the return values here may need to be separated into reviews and trailers values
-
+            Log.v(TAG, "getting trailers contentValues");
             ContentValues trailersContentValues = MoviesDBJsonUtils
                     .getDetailsDataFromJson(context,
-                    trailersJsonResponse, reviewsJsonResponse);
+                    trailersJsonResponse, MoviesDBJsonUtils.MDB_TRAILERS_URL_KEY);
 
-            /*
-             * In cases where our JSON contained an error code, getWeatherContentValuesFromJson
-             * would have returned null. We need to check for those cases here to prevent any
-             * NullPointerExceptions being thrown. We also have no reason to insert fresh data if
-             * there isn't any to insert.
-             */
-            Log.wtf(TAG, "checking if we have downloaded any Json");
-            if ((trailersContentValues != null)) { // || (reviewsContentValues != null)) {
-                /* Get a handle on the ContentResolver to delete and insert data */
-                ContentResolver moviesContentResolver = context.getContentResolver();
+            Log.v(TAG, "getting reviews contentValues");
+            ContentValues reviewsContentValues = MoviesDBJsonUtils
+                    .getDetailsDataFromJson(context,
+                            reviewsJsonResponse, MoviesDBJsonUtils.MDB_REVIEW_URL_KEY);
 
-                Log.wtf(TAG, "we have Json! & movieId is " + movieId);
+            Log.v(TAG, "detailsCellEntry Inserting reviews into db: " + reviewsContentValues);
+            Log.v(TAG, "detailsCellEntry inserting trailers into db: " + trailersContentValues);
 
-//                moviesContentResolver.bulkInsert(
-//                        MoviesContract.MoviesEntry.CONTENT_URI,
-//                        trailersContentValues);
-                String selection = MoviesContract.MoviesEntry.COLUMN_MOVIE_ID + " = ?";
-                // selectionArgs
-                // TODO swap this for the row id?
-                String[] selectionArgs = { "" + movieId};
-                /* update our contentProvider with trailers for the appropriate row */
-                Uri detailsQueryUri = ContentUris.withAppendedId(
-                        MoviesContract.MoviesEntry.INSERT_DETAILS_URI, movieId);
+            // TODO check these are working correctly, get Reviews Query method working?
+            // after update, query is called.  Query for reviews doesn't work, so have to
+            // update Trailers after, because the Query there will work, will return the row's
+            // reviews, as a Cursor to be used in the adapters
+            Uri reviewsInsertUri = ContentUris.withAppendedId(
+                    MoviesContract.MoviesEntry.INSERT_REVIEWS_URI, movieId);
+            insertIntoDb(context, reviewsInsertUri, movieId, reviewsContentValues);
 
-                int rowsUpdated = moviesContentResolver.update(
-                        detailsQueryUri, //CONTENT_URI,
-                        trailersContentValues,
-                        selection,
-                        selectionArgs);
+            Uri trailerInsertUri = ContentUris.withAppendedId(
+                    MoviesContract.MoviesEntry.INSERT_DETAILS_URI, movieId);
+            insertIntoDb(context, trailerInsertUri, movieId, trailersContentValues);
 
-                if (rowsUpdated == 0) {
-                    throw new Exception("No trailers added to db, weird?");
-                }
-
-                //Log.wtf(TAG, "trailers inserted into database: " + rowUpdated);
-
-            /* If the code reaches this point, we have successfully performed our sync */
-
-            }
         } catch (Exception e) {
             /* Server probably invalid */
             Log.wtf(TAG, "dunno what this is about, Server probably invalid");
             e.printStackTrace();
         }
 
+
+    }
+
+    private static void insertIntoDb(Context context, Uri insertUri, int movieId, ContentValues newContentValues) throws Exception {
+            /*
+             * In cases where our JSON contained an error code, getWeatherContentValuesFromJson
+             * would have returned null. We need to check for those cases here to prevent any
+             * NullPointerExceptions being thrown. We also have no reason to insert fresh data if
+             * there isn't any to insert.
+             */
+        Log.wtf(TAG, "checking if we have downloaded any Json");
+        if ((newContentValues != null)) { // || (reviewsContentValues != null)) {
+                /* Get a handle on the ContentResolver to delete and insert data */
+            ContentResolver moviesContentResolver = context.getContentResolver();
+
+            Log.wtf(TAG, "we have Json! & movieId is " + movieId);
+
+//                moviesContentResolver.bulkInsert(
+//                        MoviesContract.MoviesEntry.CONTENT_URI,
+//                        trailersContentValues);
+            String selection = MoviesContract.MoviesEntry.COLUMN_MOVIE_ID + " = ?";
+            // selectionArgs
+            // TODO swap this for the row id?
+            String[] selectionArgs = { "" + movieId};
+                /* update our contentProvider with trailers for the appropriate row */
+
+            int rowsUpdated = moviesContentResolver.update(
+                    insertUri, //CONTENT_URI,
+                    newContentValues,
+                    selection,
+                    selectionArgs);
+
+            if (rowsUpdated == 0) {
+                throw new Exception("Nothing added to db, weird?");
+            }
+
+            Log.wtf(TAG, "contentValues inserted into database: " + newContentValues);
+
+            /* If the code reaches this point, we have successfully performed our sync */
+
+        }
     }
 }

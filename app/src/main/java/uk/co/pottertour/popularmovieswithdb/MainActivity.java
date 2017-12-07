@@ -60,7 +60,7 @@ public class MainActivity extends AppCompatActivity implements
     public static final int INDEX_MOVIE_TRAILERS = 8;
 
     /* We'll save to global variable during onClick so we can access them in
-    *  onBindView in DetailsAdapter */
+    *  onBindView in TrailersAdapter */
     public static String mPosterPath;
     public static String mSynopsis;
     public static String mRating;
@@ -77,7 +77,7 @@ public class MainActivity extends AppCompatActivity implements
      * Please note that 44 was chosen arbitrarily. You can use whatever number you like, so long as
      * it is unique and consistent.
      */
-    private static final int ID_POPULAR_MOVIES_LOADER = 44;
+    public static final int ID_POPULAR_MOVIES_LOADER = 44;
     private static final int ID_HIGH_RATED_MOVIES_LOADER = 45;
     private static final int ID_FAVOURITE_MOVIES_LOADER = 46;
 

@@ -1,5 +1,8 @@
 package uk.co.pottertour.popularmovieswithdb;
 
+import android.content.ContentResolver;
+import android.content.ContentUris;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
@@ -16,17 +19,27 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.widget.ToggleButton;
 
-import java.util.Arrays;
-import java.util.List;
+import com.squareup.picasso.Picasso;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
 
 import uk.co.pottertour.popularmovieswithdb.data.MoviesContract;
-import uk.co.pottertour.popularmovieswithdb.databinding.ActivityDetailBinding;
+//import uk.co.pottertour.popularmovieswithdb.databinding.ActivityDetailBinding;
 import uk.co.pottertour.popularmovieswithdb.sync.DetailsSyncUtils;
+import uk.co.pottertour.popularmovieswithdb.utilities.MoviesDBJsonUtils;
 
 public class DetailActivity extends AppCompatActivity implements
-        LoaderManager.LoaderCallbacks<Cursor>,DetailsAdapter.DetailsAdapterOnClickHandler {
+        LoaderManager.LoaderCallbacks<Cursor>,TrailersAdapter.DetailsAdapterOnClickHandler,
+        ReviewsAdapter.DetailsAdapterOnClickHandler, JsonReviewsAdapter.DetailsAdapterOnClickHandler {
 
     //The columns of data that we are interested in within our DetailActivity's list
     public static final String[] DETAILS_PROJECTION = {
@@ -55,14 +68,27 @@ public class DetailActivity extends AppCompatActivity implements
     public static final int INDEX_MOVIE_RELEASE_DATE = 6;
     public static final int INDEX_MOVIE_TITLE = 7;
     public static final int INDEX_MOVIE_TRAILERS = 8;
+    private static final int INDEX_MOVIE_REVIEWS = 9;
 
     private static final int ID_DETAIL_LOADER = 666;
 
     private Boolean mFavouriteStatus = false;
 
-    private DetailsAdapter mDetailsAdapter;
-    private RecyclerView mRecyclerView;
+    private TrailersAdapter trailersAdapter;
+    //private ReviewsAdapter reviewsAdapter;
+    private JsonReviewsAdapter reviewsAdapter;
+
+    private RecyclerView trailersRecyclerView;
+    private RecyclerView reviewsRecyclerView;
     private int mPosition = RecyclerView.NO_POSITION;
+
+    // all these views will be dealt with before service is launched
+    private ImageView mPosterImageView;
+    private TextView mTitle;
+    private TextView mReleaseDate;
+    private TextView mVoteAvg;
+    private ToggleButton mFavourite;
+    private TextView mSynopsis;
 
     private ProgressBar mLoadingIndicator;
 
@@ -76,7 +102,7 @@ public class DetailActivity extends AppCompatActivity implements
     private int mMovieId;
 
     // used for databinding, avoids findViewById repetition
-    private ActivityDetailBinding mDetailBinding;
+    //private ActivityDetailBinding mDetailBinding;
 
     //private TextView mTitle;
 
@@ -115,7 +141,42 @@ public class DetailActivity extends AppCompatActivity implements
          * Using findViewById, we get a reference to our RecyclerView from xml. This allows us to
          * do things like set the adapter of the RecyclerView and toggle the visibility.
          */
-            mRecyclerView = (RecyclerView) findViewById(R.id.recyclerview_movie_details);
+            trailersRecyclerView = (RecyclerView) findViewById(R.id.recyclerview_movie_trailers);
+            reviewsRecyclerView = (RecyclerView) findViewById(R.id.recyclerview_movie_reviews);
+
+            mPosterImageView = (ImageView) findViewById(R.id.iv_detail_poster_thumbnail);
+            mTitle = (TextView) findViewById(R.id.tv_title);
+            mReleaseDate = (TextView) findViewById(R.id.tv_release_date);
+            mVoteAvg = (TextView) findViewById(R.id.tv_vote_average);
+            mSynopsis = (TextView) findViewById(R.id.tv_overview);
+            // TODO hook up logic for making favourite button work
+            mFavourite = (ToggleButton) findViewById(R.id.button_favourite);
+
+            //                // attach the movie details such as title etc.
+            String title = MainActivity.mTitle;//mCursor.getString(DetailActivity.INDEX_MOVIE_TITLE);
+            mTitle.setText(title);
+//                detailsAdapterViewHolder.mTitle.setText(title);
+//
+            String dateText = MainActivity.mReleaseDate; //mCursor.getString(DetailActivity.INDEX_MOVIE_RELEASE_DATE);
+            mReleaseDate.setText(dateText);
+//                detailsAdapterViewHolder.mReleaseDate.setText(dateText);
+//
+            String voteAverage = MainActivity.mRating; // mCursor.getString(DetailActivity.INDEX_MOVIE_RATING)  + "/10";
+            mVoteAvg.setText(voteAverage);
+//                detailsAdapterViewHolder.mVoteAvg.setText(voteAverage);
+//
+            String overview = MainActivity.mSynopsis; // mCursor.getString(DetailActivity.INDEX_MOVIE_OVERVIEW);
+            mSynopsis.setText(overview);
+//                detailsAdapterViewHolder.mSynopsis.setText(overview);
+//
+                // Boolean.valueOf(mCursor.getString(DetailActivity.INDEX_MOVIE_FAVOURITE));
+//                detailsAdapterViewHolder.mFavourite.setPressed(MainActivity.mFave);
+//
+            String posterUrlString = MainActivity.mPosterPath; // mCursor.getString(DetailActivity.INDEX_MOVIE_POSTER);
+            Picasso.with(this)
+                        .load(posterUrlString).fit()
+                        .into(mPosterImageView);
+//                //ImageView mPosterIV = (ImageView) findViewById(R.id.iv_detail_poster_thumbnail);
 
         /*
          * The ProgressBar that will indicate to the user that we are loading data. It will be
@@ -124,7 +185,7 @@ public class DetailActivity extends AppCompatActivity implements
          * Please note: This so called "ProgressBar" isn't a bar by default. It is more of a
          * circle. We didn't make the rules (or the names of Views), we just follow them.
          */
-            mLoadingIndicator = (ProgressBar) findViewById(R.id.pb_loading_indicator);
+            mLoadingIndicator = (ProgressBar) findViewById(R.id.pb_loading_bar);
 
         /*
          * A LinearLayoutManager is responsible for measuring and positioning item views within a
@@ -140,39 +201,46 @@ public class DetailActivity extends AppCompatActivity implements
          * layout. Generally, this is only true with horizontal lists that need to support a
          * right-to-left layout.
          */
-            LinearLayoutManager layoutManager =
+            LinearLayoutManager trailersLayoutManager =
                     new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false);
-
+            LinearLayoutManager reviewsLayoutManager =
+                    new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false);
         /* setLayoutManager associates the LayoutManager we created above with our RecyclerView */
-            mRecyclerView.setLayoutManager(layoutManager);
+            trailersRecyclerView.setLayoutManager(trailersLayoutManager);
+            reviewsRecyclerView.setLayoutManager(reviewsLayoutManager);
 
         /*
          * Use this setting to improve performance if you know that changes in content do not
          * change the child layout size in the RecyclerView
          */
-            mRecyclerView.setHasFixedSize(true);
+            trailersRecyclerView.setHasFixedSize(true);
+            reviewsRecyclerView.setHasFixedSize(true);
 
         /*
          * The ForecastAdapter is responsible for linking our weather data with the Views that
          * will end up displaying our weather data.
          *
          * Although passing in "this" twice may seem strange, it is actually a sign of separation
-         * of concerns, which is best programming practice. The ForecastAdapter requires an
+         * of concerns, which is best programming practice. The Adapter requires an
          * Android Context (which all Activities are) as well as an onClickHandler. Since our
          * MainActivity implements the ForecastAdapter ForecastOnClickHandler interface, "this"
          * is also an instance of that type of handler.
          */
-            mDetailsAdapter = new DetailsAdapter(this, this);
+            trailersAdapter = new TrailersAdapter(this, this);
+            //reviewsAdapter = new ReviewsAdapter(this, this);
+            reviewsAdapter = new JsonReviewsAdapter(this, this);
 
         /* Setting the adapter attaches it to the RecyclerView in our layout. */
-            mRecyclerView.setAdapter(mDetailsAdapter);
+            trailersRecyclerView.setAdapter(trailersAdapter);
+            reviewsRecyclerView.setAdapter(reviewsAdapter);
 
         /*
          * Ensures a loader is initialized and active. If the loader doesn't already exist, one is
          * created and (if the activity/fragment is currently started) starts the loader. Otherwise
          * the last created loader is re-used.
          */
-            //getSupportLoaderManager().initLoader(ID_DETAIL_LOADER, rowSelection, this);
+            getSupportLoaderManager().initLoader(ID_DETAIL_LOADER, rowSelection, this);
+            //getSupportLoaderManager().initLoader(MainActivity.ID_POPULAR_MOVIES_LOADER, null, this);
             //getSupportLoaderManager().restartLoader(ID_DETAIL_LOADER, rowSelection, this);
 
             // this begins an immediate Network request pulling JSON from the server
@@ -187,11 +255,15 @@ public class DetailActivity extends AppCompatActivity implements
         switch (loaderId) {
 
             case ID_DETAIL_LOADER:
-                Log.wtf(TAG, "attempting to read db with a new CursorLoader using movie: " + movieId);
+                Log.v(TAG, "attempting to read db with a new CursorLoader using movie: " + movieId);
                 String selection = MoviesContract.MoviesEntry._ID + " = ?"; //COLUMN_MOVIE
                 String[] selectionArgs = {String.valueOf(movieId)}; // HOPEFULLY this selects just 1 row
-                Uri detailsQueryUri = MoviesContract.MoviesEntry.INSERT_DETAILS_URI;//CONTENT_URI;
+                //Uri detailsQueryUri = MoviesContract.MoviesEntry.INSERT_DETAILS_URI;//CONTENT_URI;
                 String sortOrder = null;
+
+                Uri detailsQueryUri = ContentUris.withAppendedId(MoviesContract.MoviesEntry.INSERT_DETAILS_URI, movieId);
+                Log.v(TAG, "detailQueryUri = " + detailsQueryUri);
+
                 // TODO this is not returning anything, it's faulty
                 return new CursorLoader(this,
                         detailsQueryUri,
@@ -251,28 +323,91 @@ public class DetailActivity extends AppCompatActivity implements
         }
 
         /* Swap out the data on the adapter*/
-        //mDetailsAdapter.swapCursor(data);
+        //trailersAdapter.swapCursor(data);
         //get the trailer
         String trailersStr = data.getString(DetailActivity.INDEX_MOVIE_TRAILERS);
-        // recreate ArrayList
-        List<String> trailersList = Arrays.asList(trailersStr.split(","));
-        Log.v(TAG, "trailersList: " + trailersList);
-        mDetailsAdapter.setMoviesData(trailersList);
+        String reviewsStr = data.getString(DetailActivity.INDEX_MOVIE_REVIEWS);
+
+        // TODO convert to json array attach adapter
+        Log.i(TAG, "olf: trailersStr: " + trailersStr);
+        // TODO this is coming out *ALREADY* processed, why?
+        Log.i(TAG, "olf: reviewsStr: " + reviewsStr);
+
+        ArrayList<String> trailersList = extractAdapterList(trailersStr);
+        //ArrayList<String> reviewsList = extractAdapterList(reviewsStr);
+        JSONArray reviewsJSONarray = extractReviewsAdapterArray(reviewsStr);
+
+        //Log.v(TAG, "detailsCellEntry trailersList: " + trailersList);
+        //Log.v(TAG, "REVIEWS list: " + reviewsStr);
+        Log.v(TAG, "olf: setting adapters");
+        //reviewsAdapter.setMoviesData(reviewsList);
+
+        reviewsAdapter.setMoviesData(reviewsJSONarray);
+        trailersAdapter.setMoviesData(trailersList);
         // TODO TESTING THIS STUFF
 //        data.close();
-//        mDetailsAdapter.notifyDataSetChanged();
+//        trailersAdapter.notifyDataSetChanged();
 
-
+        Log.v(TAG, "olf: adapters set, scrolling");
         //TextView mTitleTop = (TextView) findViewById(R.id.tv_title);
         //mTitleTop.setText(data.getString(INDEX_MOVIE_TITLE));
         if (mPosition == RecyclerView.NO_POSITION) mPosition = 0;
-        mRecyclerView.smoothScrollToPosition(mPosition);
+        trailersRecyclerView.smoothScrollToPosition(mPosition);
+        //reviewsRecyclerView.smoothScrollToPosition(mPosition);
 
         mFavouriteStatus = Boolean.valueOf(data.getString(INDEX_MOVIE_FAVOURITE));
         //if (data.getCount() != 0) showWeatherDataView();
 
         // THIS CLOSES THE CURSOR PREVENTING CHANGES IF DATASET CHANGES
         //data.close();
+    }
+
+    private JSONArray extractReviewsAdapterArray(String reviewsStr) {
+        JSONArray reviewsJsonArray = new JSONArray();
+
+        Log.i(TAG, "attempting to convert reviews DB str to a JSONArray: " + reviewsStr);
+        try {
+            reviewsJsonArray = new JSONArray(reviewsStr);
+            Log.i(TAG, "converted JSONArray: " + reviewsJsonArray);
+            return reviewsJsonArray;
+        } catch (JSONException e) {
+            e.printStackTrace();
+            Log.e(TAG, "unable to convert str to array for adapter");
+        }
+        // returning empty JSONArray
+        return reviewsJsonArray;
+    }
+
+    /*
+    * Converts the text jsonStr to a JsonObject,
+    * Extracts the urls from a Json Array and returns them
+     * Could be extended to include the review text, opening a second activity or offering
+     * accordion recyclerview items. https://stackoverflow.com/questions/27203817/recyclerview-expand-collapse-items
+     */
+    private ArrayList<String> extractAdapterList(String jsonStr) {
+        Log.v(TAG, "detailsCellEntry attempt to extract adapter list");
+        ArrayList<String> adapterDataList = new ArrayList<>();
+        try {
+            // splitToJson will not work because it will try to extract JsonObjects not String from the array
+            JSONObject jsonObject = new JSONObject(jsonStr);
+            //JSONObject reviewsJsonObject = new JSONObject(reviewsStr);
+            //JSONObject trailersJsonObject = new JSONObject(trailersStr);
+            Log.v(TAG, "detailsCellEntry converted to JsonObj");
+            JSONArray jsonArray = jsonObject.optJSONArray(MoviesDBJsonUtils.MDB_JSON_OBJ_KEY);
+            Log.v(TAG, "detailsCellEntry extracted jsonArray: " + jsonArray);
+            String urlStr;
+            for (int index = 0; index < jsonArray.length(); index++) {
+                urlStr = jsonArray.get(index).toString().replace("\\", "");
+                adapterDataList.add(urlStr);
+            }
+            //reviewsList = reviewsJsonObject.optJSONArray(MoviesDBJsonUtils.MDB_JSON_OBJ_KEY);
+            Log.v(TAG, "detailsCellEntry attempt to convert from JsonArray to ArrayList<String>: " + adapterDataList );
+        } catch (JSONException e) {
+            e.printStackTrace();
+            Log.wtf(TAG, "onLoadFinished: Cannot populate adapter with urls as db fields null");
+        }
+        Log.v(TAG, "detailsCellEntry returning adapter list");
+        return adapterDataList;
     }
 //        String title = data.getString(INDEX_MOVIE_TITLE);
 //        mDetailBinding.tvTitle.setText(title);
@@ -304,8 +439,9 @@ public class DetailActivity extends AppCompatActivity implements
      */
     @Override
     public void onLoaderReset(Loader<Cursor> loader) {
-        mDetailsAdapter = null;
-        //mDetailsAdapter.swapCursor(null);
+        trailersAdapter = null;
+        reviewsAdapter = null;
+        //trailersAdapter.swapCursor(null);
     }
     // TODO 2 get movie trailers in format of
     // https://api.themoviedb.org/3/movie/157336?api_key=....&append_to_response=reviews,videos
@@ -380,14 +516,43 @@ public class DetailActivity extends AppCompatActivity implements
     @Override
     public void onClick(String url) {
 
+        Log.v(TAG, "launching intent: " + url);
         Intent mIntent = new Intent(Intent.ACTION_VIEW);
-        mIntent.setData(Uri.parse(url));
+        mIntent.setData(Uri.parse(url)); // has leading white spaces
         startActivity(mIntent);
     }
     /* toggles favourite state */
     public void onclick_favourite_button(View view) {
 
         mFavouriteStatus = !mFavouriteStatus;
-        // TODO save to database
+        Log.v(TAG, "!!!!!!!!!!!!!!!!!!!! changed status of fave btn: " + mFavouriteStatus);
+        //TODO saving to db, is this best practice, should I use a loader instead?
+        ContentResolver moviesContentResolver = this.getContentResolver();
+        ContentValues favouriteContentValue = new ContentValues();
+        favouriteContentValue.put(MoviesContract.MoviesEntry.COLUMN_FAVOURITE, mFavouriteStatus.toString());
+
+        String selection = MoviesContract.MoviesEntry.COLUMN_MOVIE_ID + " = ?";
+        // selectionArgs
+        //String movieIdStr = mCursor.getString(DetailActivity.INDEX_MOVIE_ID);
+        String movieIdStr = String.valueOf(DetailActivity.INDEX_MOVIE_ID);
+        String[] selectionArgs = { "" + movieIdStr};
+                //* update our contentProvider with trailers for the appropriate row *//*
+        int rowUpdated = moviesContentResolver.update(
+                MoviesContract.MoviesEntry.UPDATE_FAVOURITE_URI, //CONTENT_URI,
+                favouriteContentValue,
+                selection,
+                selectionArgs);
+
+        if (rowUpdated == -1) {
+            Log.wtf(TAG, "toggled favourite but db hasn't been updated WTH?!");
+            // TODO work out how to make method throw an exception without try catch
+            //throw new Exception("Favourite toggled but db not updated, weird?");
+        }
+        else {
+            Log.wtf(TAG, "updated db with new favourite value: " + rowUpdated);
+            // ToggleButton state again
+        }
     }
+
+
 }

@@ -54,7 +54,12 @@ public final class MoviesDBJsonUtils {
     public static final String MDB_TRAILERS_URL_KEY = "key";
 
     // key to get reviews url
-    public static final String MDB_REVIEWS_URL_KEY = "url";
+    public static final String MDB_REVIEW_URL_KEY = "url";
+    public static final String MDB_REVIEW_AUTHOR_KEY = "author";
+    public static final String MDB_REVIEW_TEXT_KEY = "content";
+
+    // this is used to save a JSON object containing an array of trailer or review urls to the database
+    public static final String MDB_JSON_OBJ_KEY = "DB_JSON_OBJ_KEY";
 
     /**
      * Parse the JSON and convert it into ContentValues that can be inserted into our database.
@@ -200,33 +205,100 @@ public final class MoviesDBJsonUtils {
          * Get the trailers youtube key and Reviews url Strings from json
          *
          * @param context         An application context, such as a service or activity context.
-         * @param trailersJsonStr JSON String to parse into ContentValues.
+         * @param urlJsonStr JSON String to parse into ContentValues.
          * @return An array of ContentValues parsed from the JSON.
          */
     public static ContentValues getDetailsDataFromJson(Context context,
-                                                       String trailersJsonStr, String reviewsJsonStr)
+                                                       String urlJsonStr, String KEY)
             throws JSONException {
 
+        Log.i(TAG, "detailsCellEntry as urlJsonStr: " + urlJsonStr);
 
-        ArrayList<String> detailsCellEntry = splitToJson(trailersJsonStr, MDB_TRAILERS_URL_KEY);
-        detailsCellEntry.addAll(splitToJson(reviewsJsonStr, MDB_REVIEWS_URL_KEY));
+        /* https://stackoverflow.com/questions/3142285/saving-arraylist-in-sqlite-database-in-android*/
+        /* USED https://stackoverflow.com/questions/5703330/saving-arraylists-in-sqlite-databases*/
 
-        if (detailsCellEntry == null) {
-            Log.wtf(TAG, "no reviews or trailers returning null");
-            return null;
-        }
+        //detailsCellEntry.addAll(splitToJson(reviewsJsonStr, MDB_REVIEW_URL_KEY));
+
         // TODO it's converting an array to a string so you need to deconvert ALSO may not need
         // to encode, *test*, but will always need to cast back to array.
+
+        JSONObject mJsonObject = new JSONObject();
         ContentValues detailsContentValues = new ContentValues();
-        detailsContentValues.put(MoviesEntry.COLUMN_TRAILERS, detailsCellEntry.toString());
+
+        if (KEY == MoviesDBJsonUtils.MDB_TRAILERS_URL_KEY) {
+            ArrayList<String> detailsCellEntry = splitToJson(urlJsonStr, KEY);
+            Log.i(TAG, "detailsCellEntry: " + detailsCellEntry);
+            if (detailsCellEntry == null) {
+                Log.wtf(TAG, "no reviews or trailers returning null");
+                return null;
+            }
+            mJsonObject.put(MoviesDBJsonUtils.MDB_JSON_OBJ_KEY, new JSONArray(detailsCellEntry));
+            //String urlArrayList = new JSONArray(detailsCellEntry).toString();
+            String urlArrayList = mJsonObject.toString();
+            Log.i(TAG, "detailsCellEntry to urlArrayList Str: " + urlArrayList);
+
+            detailsContentValues.put(MoviesEntry.COLUMN_TRAILERS, urlArrayList);
+            //detailsContentValues.put(MoviesEntry.COLUMN_TRAILERS, detailsCellEntry.toString());
+        } else if (KEY == MoviesDBJsonUtils.MDB_REVIEW_URL_KEY) {
+            JSONArray mJsonArray = splitReviewToJson(urlJsonStr);
+            String reviewsJsonArrayStr = mJsonArray.toString();
+
+            //detailsContentValues.put(MoviesEntry.COLUMN_REVIEWS, detailsCellEntry.toString());
+            detailsContentValues.put(MoviesEntry.COLUMN_REVIEWS, reviewsJsonArrayStr);
+        } else Log.wtf(TAG, "weird key unable to create contentValues for db");
+
         // TODO bug check that if one of these is ContentValues arrays is empty it still works
         // we have created data in the right format, we still need to INSERT into db
-        Log.wtf(TAG, "saving urls with: " + String.valueOf(detailsCellEntry));
-        Log.wtf(TAG, "exiting JsonUtils with: " + detailsCellEntry.size() + " trailers/reviews");
+        Log.wtf(TAG, "detailsCellEntry saving urls to ContentValues: " + detailsContentValues);
+        //Log.wtf(TAG, "detailsCellEntry exiting JsonUtils with: " + detailsCellEntry.size() + " trailers/reviews");
         return detailsContentValues;
     }
+    /*
+    * @param reviewJsonStr
+    *
+    */
+    private static JSONArray splitReviewToJson(String reviewJsonStr) throws JSONException {
+
+        JSONObject reviewJsonObject = new JSONObject(reviewJsonStr);
+        boolean hasError = (has_error(reviewJsonObject));
+        // if no valid json to work on return
+        if (hasError) {
+            Log.wtf(TAG, "Json has error exiting JsonUtils");
+            return null;
+        }
+        Log.wtf(TAG, "attempting to obtain JSON array from: " + reviewJsonStr);
+
+
+        JSONArray reviewsJsonArray = new JSONArray();
+        JSONArray detailsArray = reviewJsonObject.getJSONArray(MDB_LIST);
+
+        if (detailsArray.length() == 0 || detailsArray == null) {
+            // TODO empty JSON arrays have length 1, why?!
+            Log.w(TAG, "JSON array empty = " + detailsArray.length());
+            Log.w(TAG, "JSONArray = " + detailsArray);
+            // return an empty array
+            return reviewsJsonArray;
+        }
+        String authorStr;
+        String reviewTextStr;
+
+
+        for (int arrayIndex = 0; arrayIndex < detailsArray.length(); arrayIndex++) {
+            JSONObject oldReviewObj = detailsArray.getJSONObject(arrayIndex);
+            authorStr = oldReviewObj.getString(MDB_REVIEW_AUTHOR_KEY);
+            reviewTextStr = oldReviewObj.getString(MDB_REVIEW_TEXT_KEY);
+
+            JSONObject newReviewObj = new JSONObject();
+            newReviewObj.put(MDB_REVIEW_AUTHOR_KEY, authorStr);
+            newReviewObj.put(MDB_REVIEW_TEXT_KEY, reviewTextStr);
+            reviewsJsonArray.put(newReviewObj);
+        }
+        Log.i(TAG, "reviewsJsonArray: " + reviewsJsonArray);
+        return reviewsJsonArray;
+    }
+
     /* worker method */
-    private static ArrayList<String> splitToJson(String dataJsonStr, String MDB_jsonObjKey)
+    public static ArrayList<String> splitToJson(String dataJsonStr, String MDB_jsonObjKey)
             throws JSONException {
         JSONObject dataJson = new JSONObject(dataJsonStr);
 
@@ -260,9 +332,11 @@ public final class MoviesDBJsonUtils {
             if (newDetailObj.has(MDB_jsonObjKey)) {
                 if (MDB_jsonObjKey == MDB_TRAILERS_URL_KEY) {
                     detailUrlStr = youtubePath + newDetailObj.getString(MDB_jsonObjKey);
+                    Log.v(TAG, "identified as new trailer: " + detailUrlStr);
                 } // else we have a full review url
                 else {
                     detailUrlStr = newDetailObj.getString(MDB_jsonObjKey);
+                    Log.v(TAG, "identified as new review: " + detailUrlStr);
                 }
 
                 //newTrailerEntry.put(MoviesEntry.COLUMN_REVIEWS, reviewUrlStr);

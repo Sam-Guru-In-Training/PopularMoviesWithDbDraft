@@ -14,7 +14,7 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<!-- This layout defines the main screen and will display the list of weather or an error
+<!-- This layout defines the details screen
 https://stackoverflow.com/questions/36282682/recyclerview-below-linearlayout-in-scrollview
 android.support.design.widget.CoordinatorLayout
 WAS FrameLayout
@@ -25,7 +25,10 @@ WAS FrameLayout
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-
+    <ScrollView
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:fillViewport="true">
     <!-- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
       - This RecyclerView will be responsible for displaying our list of weather data. All of  -
       - its layout attributes should make sense to you, perhaps except for                     -
@@ -38,12 +41,37 @@ WAS FrameLayout
       - called an EdgeEffect in Android. The problem when clipToPadding is set to "true" is    -
       - that there is a gap between the bottom of the screen and the EdgeEffect. Set           -
       - clipToPadding to "false" again and observe how the gap is gone.                        -
+      https://stackoverflow.com/questions/30061897/two-recyclerviews-under-each-other-in-one-layout
       - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -->
-    <android.support.v7.widget.RecyclerView
-        android:id="@+id/recyclerview_movie_details"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:clipToPadding="false"
-        android:paddingBottom="8dp"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <!-- should include the movie details -->
+            <include layout="@layout/primary_detail_info"/>
 
+            <ProgressBar
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:id="@+id/pb_loading_bar"
+                android:layout_gravity="center"
+                android:visibility="invisible"/>
+
+            <android.support.v7.widget.RecyclerView
+                android:id="@+id/recyclerview_movie_trailers"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:paddingBottom="0dp"
+                />
+
+            <android.support.v7.widget.RecyclerView
+                android:id="@+id/recyclerview_movie_reviews"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:paddingBottom="8dp"
+                />
+        </LinearLayout>
+    </ScrollView>
 </FrameLayout>

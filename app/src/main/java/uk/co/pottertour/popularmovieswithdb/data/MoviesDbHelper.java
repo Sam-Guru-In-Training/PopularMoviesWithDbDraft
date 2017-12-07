@@ -86,9 +86,9 @@ public class MoviesDbHelper extends SQLiteOpenHelper {
                         MoviesEntry.COLUMN_TRAILERS + " TEXT NOT NULL, "                    +
 // TODO trailers and reviews will be lists converted to Strings
                         MoviesEntry.COLUMN_REVIEWS    + " TEXT NOT NULL, "                    +
-                        MoviesEntry.COLUMN_FAVOURITE + " TEXT NOT NULL, " +
+                        MoviesEntry.COLUMN_FAVOURITE + " TEXT NOT NULL DEFAULT 'false', " +
                         //MoviesEntry.COLUMN_LENGTH + " "
-
+////TEXT NOT NULL DEFAULT ''
                 /*
                  * To ensure this table can only contain one weather entry per date, we declare
                  * the date column to be unique. We also specify "ON CONFLICT REPLACE". This tells

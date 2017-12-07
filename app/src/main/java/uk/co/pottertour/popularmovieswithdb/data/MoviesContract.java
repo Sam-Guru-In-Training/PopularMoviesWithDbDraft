@@ -55,6 +55,7 @@ public class MoviesContract {
     public static final String PATH_MOVIES = "movies";
     public static final String PATH_DETAILS = "details";
     public static final String PATH_FAVOURITES_ONLY = "favourites";
+    public static final String PATH_REVIEWS = "reviews";
 
     /* Inner class that defines the table contents of the weather table */
     public static final class MoviesEntry implements BaseColumns {
@@ -64,13 +65,19 @@ public class MoviesContract {
                 .appendPath(PATH_MOVIES)
                 .build();
 
+        // used for trailers db CRUD ops
         public static final Uri INSERT_DETAILS_URI = CONTENT_URI.buildUpon()//BASE_CONTENT_URI.buildUpon()
                 .appendPath(PATH_DETAILS)
                 .build();
 
-        public static final Uri GET_FAVOURITES_URI = BASE_CONTENT_URI.buildUpon()
+        public static final Uri INSERT_REVIEWS_URI = CONTENT_URI.buildUpon()
+                .appendPath(PATH_REVIEWS)
+                .build();
+
+        public static final Uri UPDATE_FAVOURITE_URI = BASE_CONTENT_URI.buildUpon()
                 .appendPath(PATH_FAVOURITES_ONLY)
                 .build();
+
 
         /* Used internally as the name of our movies table. */
         public static final String TABLE_NAME = "movies";
@@ -123,7 +130,7 @@ public class MoviesContract {
         /* Trailers stored as an array of Youtube Uris */
         public static final String COLUMN_TRAILERS = "trailers";
 
-        /* Reviews stored as Review objects with various attributes */
+        /* Reviews stored as array of URL strings */
         public static final String COLUMN_REVIEWS = "reviews";
 
         public static final String COLUMN_FAVOURITE = "favourite";

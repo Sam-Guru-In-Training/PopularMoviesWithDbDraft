@@ -11,16 +11,9 @@
     android:paddingLeft="@dimen/list_item_padding_horizontal"
     android:paddingRight="@dimen/list_item_padding_horizontal"
     android:paddingTop="@dimen/list_item_padding_vertical">
-    <ImageView
-        android:id="@+id/play_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/tv_review_or_trailer_link"
-        android:background="@drawable/ic_play_arrow_black_24dp"/>
+
     <TextView
-        android:id="@+id/tv_review_or_trailer_link"
+        android:id="@+id/tv_reviewer_name"
         android:tag="@string/trailersTag"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -29,22 +22,31 @@
         android:layout_marginLeft="8dp"
         tools:text="Trailer 1"
         />
-    <!--<android.support.constraint.Guideline-->
-        <!--android:layout_width="wrap_content"-->
-        <!--android:layout_height="wrap_content"-->
-        <!--android:id="@+id/guideline"-->
-        <!--android:orientation="vertical"-->
-        <!--app:layout_constraintGuide_percent="0.5" />-->
-    <!--<TextView-->
-        <!--android:id="@+id/tv_reviews_label"-->
-        <!--android:tag="@string/reviewsTag"-->
-        <!--android:layout_width="0dp"-->
-        <!--android:layout_height="wrap_content"-->
-        <!--app:layout_constraintEnd_toEndOf="parent"-->
-        <!--app:layout_constraintStart_toEndOf="@+id/guideline"-->
-        <!--app:layout_constraintTop_toTopOf="parent"-->
-        <!--tools:text="Review 1"-->
-        <!--/>-->
+    <ImageView
+        android:id="@+id/expand_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintRight_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/tv_review_or_trailer_link"
+        android:background="@drawable/ic_arrow_drop_down_black_24dp"/>
+    <ImageView
+        android:id="@+id/minimise_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintRight_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/tv_review_or_trailer_link"
+        android:visibility="gone"
+        android:background="@drawable/ic_arrow_drop_up_black_24dp"/>
+    <TextView
+        android:id="@+id/tv_review_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintLeft_toRightOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/tv_reviewer_name"
+        />
     <android.support.constraint.Guideline
         android:id="@+id/guidelineHoriz"
         android:layout_width="0dp"

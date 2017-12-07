@@ -48,10 +48,12 @@ public class MoviesProvider extends ContentProvider {
     public static final int CODE_MOVIES = 100;
     public static final int CODE_WEATHER_WITH_DATE = 101;
     public static final int CODE_TRAILERS = 102;
+    private static final int CODE_REVIEWS = 105;
+
     public static final int CODE_TRAILERS_QUERY = 104;
     public static final int CODE_FAVOURITE_ONLY = 103;
     //public static final int CODE_WEATHER_WITH_DATE = 101;
-    private static final String TAG = MoviesProvider.class.getSimpleName();
+    private static String TAG = MoviesProvider.class.getSimpleName();
 
     /*
      * The URI Matcher used by this content provider. The leading "s" in this variable name
@@ -102,11 +104,13 @@ public class MoviesProvider extends ContentProvider {
          * that it should return the CODE_WEATHER_WITH_DATE code
          */
         //matcher.addURI(authority, MoviesContract.PATH_MOVIES + "/#", CODE_WEATHER_WITH_DATE);
-        matcher.addURI(authority, MoviesContract.PATH_MOVIES + "/" + MoviesContract.PATH_DETAILS, CODE_TRAILERS);
+        //matcher.addURI(authority, MoviesContract.PATH_MOVIES + "/" + MoviesContract.PATH_DETAILS, CODE_TRAILERS);
 
         matcher.addURI(authority, MoviesContract.PATH_FAVOURITES_ONLY, CODE_FAVOURITE_ONLY);
 
-        matcher.addURI(authority, MoviesContract.PATH_DETAILS + "/#", CODE_TRAILERS);
+        matcher.addURI(authority, MoviesContract.PATH_MOVIES + "/" + MoviesContract.PATH_DETAILS + "/#", CODE_TRAILERS);
+
+        matcher.addURI(authority, MoviesContract.PATH_MOVIES + "/" + MoviesContract.PATH_REVIEWS + "/#", CODE_REVIEWS);
 
         return matcher;
     }
@@ -138,57 +142,6 @@ public class MoviesProvider extends ContentProvider {
     }
 
     /**
-     * Handles requests to insert a set of new rows. In Sunshine, we are only going to be
-     * inserting multiple rows of data at a time from a weather forecast. There is no use case
-     * for inserting a single row of data into our ContentProvider, and so we are only going to
-     * implement bulkInsert. In a normal ContentProvider's implementation, you will probably want
-     * to provide proper functionality for the insert method as well.
-     *
-     * @param uri    The content:// URI of the insertion request.
-     * @param values An array of sets of column_name/value pairs to add to the database.
-     *               This must not be {@code null}.
-     *
-     * @return The number of values that were inserted.
-     */
-    @Override
-    public int bulkInsert(@NonNull Uri uri, @NonNull ContentValues[] values) {
-        final SQLiteDatabase db = mOpenHelper.getWritableDatabase();
-
-        switch (sUriMatcher.match(uri)) {
-
-            case CODE_MOVIES:
-                db.beginTransaction();
-                int rowsInserted = 0;
-                try {
-                    for (ContentValues value : values) {
-//                        long weatherDate =
-//                                value.getAsLong(MoviesContract.MoviesEntry.COLUMN_TITLE);
-//                        if (!SunshineDateUtils.isDateNormalized(weatherDate)) {
-//                            throw new IllegalArgumentException("Date must be normalized to insert");
-//                        }
-
-                        long _id = db.insert(MoviesContract.MoviesEntry.TABLE_NAME, null, value);
-                        if (_id != -1) {
-                            rowsInserted++;
-                        }
-                    }
-                    db.setTransactionSuccessful();
-                } finally {
-                    db.endTransaction();
-                }
-
-                if (rowsInserted > 0) {
-                    getContext().getContentResolver().notifyChange(uri, null);
-                }
-
-                return rowsInserted;
-
-            default:
-                return super.bulkInsert(uri, values);
-        }
-    }
-
-    /**
      * Handles query requests from clients. We will use this method in Sunshine to query for all
      * of our weather data as well as to query for the weather on a particular day.
      *
@@ -208,7 +161,7 @@ public class MoviesProvider extends ContentProvider {
                         String[] selectionArgs, String sortOrder) {
 
         Cursor cursor;
-        Log.wtf(TAG, "DB query has fired");
+        Log.wtf(TAG, "DB query has fired, uri in: " + uri);
 
         /*
          * Here's the switch statement that, given a URI, will determine what kind of request is
@@ -229,6 +182,8 @@ public class MoviesProvider extends ContentProvider {
              * In this case, we want to return a cursor that contains one row of weather data for
              * a particular date.
              */
+
+
             case CODE_WEATHER_WITH_DATE: {
                 Log.wtf(TAG, "making a database query for a weather with date, wtf?");
 
@@ -314,11 +269,13 @@ public class MoviesProvider extends ContentProvider {
                 break;
             }
             case CODE_TRAILERS: {
-                Log.wtf(TAG, "CODE_TRAILERS: making a query");
+                Log.wtf(TAG, "CODE_TRAILERS: making a query: " + uri);
                 Log.wtf(TAG, "trailers code, selection_col: " + selection);
                 Log.wtf(TAG, "trailers code, selection_vals: " + selectionArgs);
+
                 String rowId = String.valueOf(ContentUris.parseId(uri));
-                selection = MoviesContract.MoviesEntry._ID;
+                //selection = MoviesContract.MoviesEntry._ID + " = ?";
+                selection = MoviesContract.MoviesEntry.COLUMN_MOVIE_ID + " = ?";
                 selectionArgs = new String[]{rowId};
                 cursor = mOpenHelper.getReadableDatabase().query(
                         MoviesContract.MoviesEntry.TABLE_NAME,
@@ -331,7 +288,9 @@ public class MoviesProvider extends ContentProvider {
 
                 break;
             }
+
             case CODE_FAVOURITE_ONLY: {
+
                 Log.wtf(TAG, "making a query for favourties");
                 cursor = mOpenHelper.getReadableDatabase().query(
                         MoviesContract.MoviesEntry.TABLE_NAME,
@@ -426,7 +385,7 @@ public class MoviesProvider extends ContentProvider {
     @Override
     public Uri insert(@NonNull Uri uri, ContentValues values) {
         throw new RuntimeException(
-                "We are not implementing insert. Use bulkInsert instead");
+                "Error in DB insert method.");
     }
 
     @Override
@@ -434,22 +393,52 @@ public class MoviesProvider extends ContentProvider {
         // TODO need this working for trailers and reviews addition and favouriting
         // TODO make sure sending through right selection arguments
         final SQLiteDatabase db = mOpenHelper.getWritableDatabase();
+        Log.v(TAG, "arrived in db update");
+
+        long _id;
+        int rowsUpdated = 0;
 
         switch (sUriMatcher.match(uri)) {
 
             // TODO ONLY NEED ONE CODE FOR REVIEWS AND TRAILERS?
-            case CODE_TRAILERS:
+            case CODE_FAVOURITE_ONLY:
+                Log.v(TAG, "updating favourite status :)");
                 db.beginTransaction();
-                long _id;
-                int rowsUpdated = 0;
                 try {
+                    _id = db.update(MoviesContract.MoviesEntry.TABLE_NAME,
+                            newValues, selection, selectionArgs);
+                    Log.v(TAG, "updating favourite status, _id = " + _id);
+                    // TODO this is returning a favourite uri, will it update the table seen by other uris?
+                    if (_id > -1) getContext().getContentResolver().notifyChange(uri, null);
+                    db.setTransactionSuccessful();
+                } finally {
+                    db.endTransaction();
+                }
+                return (int) _id;
+
+
+            //case CODE_MOVIES:
+            case CODE_TRAILERS:
+                try{
+                    Log.v(TAG, "CODE_TRAILERS: trying to find row id from: " + String.valueOf(uri));
+                    Long rowId = ContentUris.parseId(uri);
+                    Log.v(TAG, "movieId found: " + rowId);
+                    //selectionArgs = new String[]{String.valueOf(rowId)};
+                }
+                catch (NumberFormatException e) {
+                    Log.v(TAG, "doesn\'t have ID appended continue as normal");
+                };
+
+                db.beginTransaction();
+                try {
+                    // TODO need to change for newValues.get(MoviesContract.MoviesEntry.COLUMN_REVIEWS)
                         Log.wtf(TAG, "£££ New db trailer values: " + newValues.get(MoviesContract.MoviesEntry.COLUMN_TRAILERS));
                         _id = db.update(MoviesContract.MoviesEntry.TABLE_NAME,
                                 newValues, selection, selectionArgs);
                         if (_id != -1) {
                             rowsUpdated++;
                         }
-                    db.setTransactionSuccessful();
+                      db.setTransactionSuccessful();
                 } finally {
                     db.endTransaction();
                 }
@@ -463,11 +452,58 @@ public class MoviesProvider extends ContentProvider {
                     // TODO Why? query will fire if returnUri set to CONTENT_URI, but not if anything else?!
                     Uri returnUri = ContentUris.withAppendedId(
                             MoviesContract.MoviesEntry.INSERT_DETAILS_URI, _id);
-                    Log.wtf(TAG, "arrived with uri: " + uri);
                     // TODO why is the _id always 1?  There is something wrong.
                     Log.v(TAG, "sending uri with id: " + _id);
                     Log.v(TAG, "sending uri: " + returnUri);
                     getContext().getContentResolver().notifyChange(returnUri, null);
+                    //db.setTransactionSuccessful();
+
+                }
+                else {
+                    Log.wtf(TAG, "No rows updated: " + rowsUpdated + " :(");
+                }
+                return rowsUpdated;
+
+            case CODE_REVIEWS:
+                TAG = TAG + " CODE_REVIEWS";
+                try{
+                    Log.v(TAG, "trying to find row id from: " + String.valueOf(uri));
+                    Long rowId = ContentUris.parseId(uri);
+                    Log.v(TAG, "movieId found: " + rowId);
+                    //selectionArgs = new String[]{String.valueOf(rowId)};
+                }
+                catch (NumberFormatException e) {
+                    Log.v(TAG, "doesn\'t have ID appended continue as normal");
+                };
+
+                db.beginTransaction();
+                try {
+                    Log.wtf(TAG, "£££ New db reviews values: " + newValues.get(MoviesContract.MoviesEntry.COLUMN_REVIEWS));
+                    _id = db.update(MoviesContract.MoviesEntry.TABLE_NAME,
+                            newValues, selection, selectionArgs);
+                    if (_id != -1) {
+                        rowsUpdated++;
+                    }
+                    db.setTransactionSuccessful();
+                } finally {
+                    db.endTransaction();
+                }
+
+                if (rowsUpdated > 0) {
+                    Log.wtf(TAG, "updated " + rowsUpdated + " reviews in db, notifying change, yay!");
+                    // TODO may have to use a uri with the _ID of the movie appended,
+                    // TODO so can unpack it and use it in the query method to signal Cursor to return
+
+                    // TODO Why? _id seems to always equal 1, and also not be detected.
+                    // TODO Why? query will fire if returnUri set to CONTENT_URI, but not if anything else?!
+                    Uri returnUri = ContentUris.withAppendedId(
+                            MoviesContract.MoviesEntry.INSERT_DETAILS_URI, _id);
+                    // TODO why is the _id always 1?  There is something wrong.
+                    Log.v(TAG, "sending uri with id: " + _id);
+                    Log.v(TAG, "sending uri: " + returnUri);
+                    getContext().getContentResolver().notifyChange(returnUri, null);
+                    //db.setTransactionSuccessful();
+
                 }
                 else {
                     Log.wtf(TAG, "No rows updated: " + rowsUpdated + " :(");
@@ -477,6 +513,56 @@ public class MoviesProvider extends ContentProvider {
             default:
                 Log.wtf(TAG, "throwing error " + uri);
                 throw new IllegalArgumentException("Unknown URI when updating db row: " + uri);
+        }
+    }
+    /**
+     * Handles requests to insert a set of new rows. In Sunshine, we are only going to be
+     * inserting multiple rows of data at a time from a weather forecast. There is no use case
+     * for inserting a single row of data into our ContentProvider, and so we are only going to
+     * implement bulkInsert. In a normal ContentProvider's implementation, you will probably want
+     * to provide proper functionality for the insert method as well.
+     *
+     * @param uri    The content:// URI of the insertion request.
+     * @param values An array of sets of column_name/value pairs to add to the database.
+     *               This must not be {@code null}.
+     *
+     * @return The number of values that were inserted.
+     */
+    @Override
+    public int bulkInsert(@NonNull Uri uri, @NonNull ContentValues[] values) {
+        final SQLiteDatabase db = mOpenHelper.getWritableDatabase();
+
+        switch (sUriMatcher.match(uri)) {
+
+            case CODE_MOVIES:
+                db.beginTransaction();
+                int rowsInserted = 0;
+                try {
+                    for (ContentValues value : values) {
+//                        long weatherDate =
+//                                value.getAsLong(MoviesContract.MoviesEntry.COLUMN_TITLE);
+//                        if (!SunshineDateUtils.isDateNormalized(weatherDate)) {
+//                            throw new IllegalArgumentException("Date must be normalized to insert");
+//                        }
+
+                        long _id = db.insert(MoviesContract.MoviesEntry.TABLE_NAME, null, value);
+                        if (_id != -1) {
+                            rowsInserted++;
+                        }
+                    }
+                    db.setTransactionSuccessful();
+                } finally {
+                    db.endTransaction();
+                }
+
+                if (rowsInserted > 0) {
+                    getContext().getContentResolver().notifyChange(uri, null);
+                }
+
+                return rowsInserted;
+
+            default:
+                return super.bulkInsert(uri, values);
         }
     }
 
